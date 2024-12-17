@@ -1,6 +1,6 @@
 ARG gopath_default=/tmp/build-golang
 
-FROM bitnami/minideb-extras:jessie-buildpack as BUILD
+FROM bitnami/minideb:bullseye as BUILD
 
 ARG gopath_default
 ENV GOPATH=$gopath_default
@@ -8,8 +8,47 @@ ENV PATH=$GOPATH/bin:/opt/bitnami/go/bin:$PATH
 WORKDIR $GOPATH/src/github.com/didi/rdebug
 COPY . $GOPATH/src/github.com/didi/rdebug
 
-RUN mkdir -p $GOPATH/bin && bitnami-pkg install go-1.8.3-0 --checksum 557d43c4099bd852c702094b6789293aed678b253b80c34c764010a9449ff136
-RUN curl https://glide.sh/get | sh && bitnami-pkg install nginx-1.14.0-0
+# 设置国内的 APT 源
+RUN echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye-updates main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye-backports main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list
+
+
+#RUN mkdir -p $GOPATH/bin && bitnami-pkg install go-1.8.3-0 --checksum 557d43c4099bd852c702094b6789293aed678b253b80c34c764010a9449ff136
+RUN apt-get update && \
+    apt-get install -y curl wget gnupg2 ca-certificates golang-glide gcc g++&& \
+    rm -rf /var/lib/apt/lists/*
+
+RUN install_packages build-essential wget libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev
+
+RUN mkdir -p $GOPATH/bin
+RUN wget https://storage.googleapis.com/golang/go1.8.3.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go1.8.3.linux-amd64.tar.gz \
+    && rm go1.8.3.linux-amd64.tar.gz \
+    && ln -s /usr/local/go/bin/go /usr/bin/go
+
+# 定义 NGINX 版本
+ENV NGINX_VERSION=1.14.0
+
+# 创建安装目录
+RUN mkdir -p /opt/bitnami/nginx/ && \
+    mkdir -p /tmp/nginx
+
+# 下载并编译 NGINX
+RUN cd /tmp/nginx && \
+    wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    tar -xzvf nginx-${NGINX_VERSION}.tar.gz && \
+    cd nginx-${NGINX_VERSION} && \
+    ./configure --prefix=/opt/bitnami/nginx \
+                --conf-path=/opt/bitnami/nginx/nginx.conf \
+                --error-log-path=/opt/bitnami/nginx/error.log \
+                --http-log-path=/opt/bitnami/nginx/access.log \
+                --with-pcre \
+                --with-http_ssl_module && \
+    make && \
+    make install
+
 RUN cd koala-libc && sh build.sh \
     && cd ../koala && sh build.sh vendor && sh build.sh && sh build.sh recorder
 
