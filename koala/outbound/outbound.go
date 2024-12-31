@@ -149,14 +149,22 @@ func handleOutbound(conn *net.TCPConn) {
 
 func readRequest(ctx context.Context, conn *net.TCPConn, buf []byte, isFirstPacket bool) (string, []byte) {
 	request := []byte{}
+	remoteAddr := conn.RemoteAddr().String() // 获取远程地址
+	startTime := time.Now() // 记录开始时间
 	if isFirstPacket {
-		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 20))
+		conn.SetReadDeadline(time.Now().Add(time.Millisecond * 20*5))
 	} else {
-		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		conn.SetReadDeadline(time.Now().Add(time.Second * 5*5))
 	}
 	bytesRead, err := conn.Read(buf)
 	if err == io.EOF {
-		countlog.Trace("event!outbound.read_request_EOF", "ctx", ctx, "err", err)
+		countlog.Trace("event!outbound.read_request_EOF",
+			"ctx", ctx,
+			"err", err,
+			"remoteAddr", remoteAddr,
+			"bytesRead", bytesRead,
+			"requestSoFar", string(request),
+			"timeElapsed", time.Since(startTime))
 		return "", nil
 	}
 	protocol := ""
