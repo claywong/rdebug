@@ -55,6 +55,12 @@ func on_connect(threadID C.pid_t, socketFD C.int, remoteAddr *C.struct_sockaddr_
 		IP:   ch.Int2ip(sockaddr_in_sin_addr_get(remoteAddr)),
 		Port: int(ch.Ntohs(sockaddr_in_sin_port_get(remoteAddr))),
 	}
+	// Check if the connection is a DNS request by checking if the port is 53
+	if origAddr.Port == 53 {
+		// DNS resolution detected, do not forward
+		countlog.Trace("event!gw4libc.dns_request_detected", "origAddr", &origAddr)
+		return
+	}
 
 	//IsOutboundBypassAddr: the addr of outbound will be bypassed at recording or replaying, eg: service discovery
 	//IsOutboundBypassPort: the port of outbound will bypass at replaying, eg: xdebug
